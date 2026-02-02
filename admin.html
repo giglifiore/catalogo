@@ -29,12 +29,12 @@ img{max-width:120px;margin-top:8px;border-radius:6px}
   <div class="tab" onclick="showTab('productos')">🛒 Productos</div>
 </div>
 
-<!-- ================= ORDENES ================= -->
+<!-- ORDENES -->
 <div id="ordenes" class="section active">
   <div id="listaOrdenes"></div>
 </div>
 
-<!-- ================= PRODUCTOS ================= -->
+<!-- PRODUCTOS -->
 <div id="productos" class="section">
   <div class="card">
     <input type="hidden" id="prodId">
@@ -50,23 +50,38 @@ img{max-width:120px;margin-top:8px;border-radius:6px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, get, remove }
 from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
+/* ================= FIREBASE ================= */
 const firebaseConfig = {
   apiKey: "AIzaSyBSDmBuzRSGTYycswO7_p_kHgfscH67rJQ",
   authDomain: "catalogo-12ef6.firebaseapp.com",
   databaseURL: "https://catalogo-12ef6-default-rtdb.firebaseio.com",
-  projectId: "catalogo-12ef6",
-  storageBucket: "catalogo-12ef6.appspot.com",
+  projectId: "catalogo-12ef6"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const storage = getStorage(app);
+
+/* ================= CLOUDINARY ================= */
+const CLOUD_NAME = "dc4jnia02";
+const UPLOAD_PRESET = "catalogo_unsigned";
+
+async function subirImagen(file){
+  const data = new FormData();
+  data.append("file", file);
+  data.append("upload_preset", UPLOAD_PRESET);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    { method:"POST", body:data }
+  );
+
+  const json = await res.json();
+  return json.secure_url;
+}
 
 /* ================= TABS ================= */
-window.showTab = tab => {
+window.showTab = tab=>{
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelector(`[onclick="showTab('${tab}')"]`).classList.add('active');
@@ -84,10 +99,16 @@ onValue(ref(db,"ordenes"), snap=>{
       <div class="card">
         <b>${o.cliente?.nombre || "Cliente"}</b><br>
         Total: $${o.total || 0}
-        <button class="btn-delete" onclick="remove(ref(db,'ordenes/${c.key}'))">Eliminar</button>
+        <button class="btn-delete" onclick="eliminarOrden('${c.key}')">Eliminar</button>
       </div>`;
   });
 });
+
+window.eliminarOrden=id=>{
+  if(confirm("Eliminar orden?")){
+    remove(ref(db,"ordenes/"+id));
+  }
+}
 
 /* ================= PRODUCTOS ================= */
 const productosRef=ref(db,"productos");
@@ -103,13 +124,13 @@ onValue(productosRef,snap=>{
         <b>${p.nombre}</b><br>$${p.precio}
         ${p.foto?`<img src="${p.foto}">`:""}
         <button onclick="editar('${c.key}','${p.nombre}','${p.precio}')">✏️</button>
-        <button class="btn-delete" onclick="eliminar('${c.key}','${p.fotoPath || ""}')">🗑</button>
+        <button class="btn-delete" onclick="eliminarProducto('${c.key}')">🗑</button>
       </div>`;
   });
 });
 
 window.guardarProducto = async ()=>{
-  const id=prodId.value;
+  const id=document.getElementById("prodId").value;
   const nombre=document.getElementById("nombre").value;
   const precio=Number(document.getElementById("precio").value);
   const file=document.getElementById("imagen").files[0];
@@ -117,32 +138,29 @@ window.guardarProducto = async ()=>{
   let data={nombre,precio};
 
   if(file){
-    const path=`productos/${Date.now()}_${file.name}`;
-    const imgRef=sRef(storage,path);
-    await uploadBytes(imgRef,file);
-    data.foto=await getDownloadURL(imgRef);
-    data.fotoPath=path;
+    data.foto = await subirImagen(file);
   }else if(id){
     const old=(await get(ref(db,"productos/"+id))).val();
     if(old?.foto) data.foto=old.foto;
-    if(old?.fotoPath) data.fotoPath=old.fotoPath;
   }
 
   id ? set(ref(db,"productos/"+id),data) : push(productosRef,data);
 
-  prodId.value=nombre.value=precio.value=imagen.value="";
+  document.getElementById("prodId").value="";
+  document.getElementById("nombre").value="";
+  document.getElementById("precio").value="";
+  document.getElementById("imagen").value="";
 }
 
 window.editar=(id,n,p)=>{
-  prodId.value=id;
-  nombre.value=n;
-  precio.value=p;
+  document.getElementById("prodId").value=id;
+  document.getElementById("nombre").value=n;
+  document.getElementById("precio").value=p;
   showTab('productos');
 }
 
-window.eliminar=async(id,path)=>{
+window.eliminarProducto=id=>{
   if(confirm("Eliminar producto?")){
-    if(path) await deleteObject(sRef(storage,path));
     remove(ref(db,"productos/"+id));
   }
 }
