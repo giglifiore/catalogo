@@ -13,7 +13,7 @@ body{font-family:Arial;background:#f5f5f5;padding:20px}
 .section{display:none}
 .section.active{display:block}
 .card{background:#fff;padding:15px;margin-bottom:12px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.1)}
-input,button{width:100%;padding:8px;margin-top:8px}
+input{width:100%;padding:8px;margin-top:8px}
 button{cursor:pointer}
 .btn-delete{background:#e74c3c;color:#fff;border:none}
 img{max-width:120px;margin-top:8px;border-radius:6px}
@@ -26,10 +26,23 @@ img{max-width:120px;margin-top:8px;border-radius:6px}
   border-radius: 6px;
 }
 
+#btnCatalogo{
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 50px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,.3);
+}
 </style>
 </head>
 
 <body>
+<button id="btnCatalogo">🛍️ Ver Catálogo</button>
 
 <h1>⚙️ Panel Admin</h1>
 
@@ -333,6 +346,10 @@ window.eliminarProducto=id=>{
     remove(ref(db,"productos/"+id));
   }
 }
+document.getElementById("btnCatalogo").onclick = () => {
+  window.location.href = "index.html";
+};
+
 </script>
 
 </body>
