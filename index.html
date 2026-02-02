@@ -54,6 +54,15 @@ button {
   box-shadow: 0 4px 10px rgba(0,0,0,.3);
 }
 
+.producto img{
+  width: 220px;
+  height: 150px;
+  object-fit: contain;   /* 👈 CLAVE */
+  background: #fff;      /* opcional */
+  border-radius: 6px;
+}
+
+
 </style>
 </head>
 
@@ -123,10 +132,19 @@ onValue(ref(db,"productos"), snap=>{
 /* ===== UI ===== */
 function renderProductos(){
   contProductos.innerHTML = "";
-  productos.forEach(p=>{
+
+  productos.forEach(p => {
+
+    let img = p.foto
+      ? p.foto.replace(
+          "/upload/",
+          "/upload/w_200,h_150,c_fit,f_auto,q_auto/"
+        )
+      : "https://via.placeholder.com/200x150";
+
     contProductos.innerHTML += `
       <div class="producto">
-        <img src="${p.foto || 'https://via.placeholder.com/220x150'}">
+        <img src="${img}">
         <h3>${p.nombre}</h3>
         <p>$${p.precio}</p>
         <button onclick="agregar('${p.codigo}')">Agregar</button>
@@ -134,6 +152,9 @@ function renderProductos(){
     `;
   });
 }
+
+
+
 
 window.agregar = codigo=>{
   const prod = productos.find(p=>p.codigo===codigo);
