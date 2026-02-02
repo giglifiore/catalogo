@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Tienda | Órdenes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial;
+  margin: 0;
+  background: #f7f7f7;
+  display: flex;
+  min-height: 100vh;
+}
+.contenedor { flex: 1; padding: 20px; }
+.productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+  gap: 20px;
+}
+.producto {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+.producto img { width: 100%; border-radius: 8px; }
+button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.carrito {
+  width: 300px;
+  background: #fff;
+  border-left: 2px solid #ddd;
+  padding: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="contenedor">
+  <h1>🛍️ Catálogo</h1>
+  <div class="productos" id="productos"></div>
+</div>
+
+<div class="carrito">
+  <h2>🛒 Carrito</h2>
+  <ul id="lista-carrito"></ul>
+  <p id="total">Total: $0.00</p>
+  <button id="generar">Generar Orden</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, push }
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+/* ===== FIREBASE ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBSDmBuzRSGTYycswO7_p_kHgfscH67rJQ",
+  authDomain: "catalogo-12ef6.firebaseapp.com",
+  databaseURL: "https://catalogo-12ef6-default-rtdb.firebaseio.com",
+  projectId: "catalogo-12ef6",
+  storageBucket: "catalogo-12ef6.appspot.com",
+  messagingSenderId: "792387780357",
+  appId: "1:792387780357:web:d77a3333ffbcefba15816c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ===== ELEMENTOS ===== */
+const contProductos = document.getElementById("productos");
+const listaCarrito = document.getElementById("lista-carrito");
+const totalEl = document.getElementById("total");
+const generarBtn = document.getElementById("generar");
+
+let productos = [];
+let carrito = [];
+
+/* ===== LEER PRODUCTOS ===== */
+onValue(ref(db,"productos"), snap=>{
+  productos = [];
+  contProductos.innerHTML = "";
+
+  if(!snap.exists()){
+    contProductos.innerHTML = "<p>No hay productos</p>";
+    return;
+  }
+
+  snap.forEach(child=>{
+    productos.push({
+      codigo: child.key,
+      ...child.val()
+    });
+  });
+
+  renderProductos();
+});
+
+/* ===== UI ===== */
+function renderProductos(){
+  contProductos.innerHTML = "";
+  productos.forEach(p=>{
+    contProductos.innerHTML += `
+      <div class="producto">
+        <img src="${p.foto || 'https://via.placeholder.com/220x150'}">
+        <h3>${p.nombre}</h3>
+        <p>$${p.precio}</p>
+        <button onclick="agregar('${p.codigo}')">Agregar</button>
+      </div>
+    `;
+  });
+}
+
+window.agregar = codigo=>{
+  const prod = productos.find(p=>p.codigo===codigo);
+  const item = carrito.find(i=>i.codigo===codigo);
+
+  if(item) item.cantidad++;
+  else carrito.push({...prod, cantidad:1});
+
+  renderCarrito();
+};
+
+function renderCarrito(){
+  listaCarrito.innerHTML="";
+  let total=0;
+
+  carrito.forEach(i=>{
+    total += i.precio*i.cantidad;
+    listaCarrito.innerHTML += `
+      <li>${i.nombre} x${i.cantidad} - $${(i.precio*i.cantidad).toFixed(2)}</li>
+    `;
+  });
+
+  totalEl.textContent = `Total: $${total.toFixed(2)}`;
+}
+
+/* ===== ORDEN ===== */
+generarBtn.onclick = async ()=>{
+  if(!carrito.length) return alert("Carrito vacío");
+
+  const nombre = prompt("Nombre cliente:");
+  const telefono = prompt("WhatsApp:");
+
+  const orden = {
+    cliente:{nombre,telefono},
+    items:carrito,
+    total: carrito.reduce((s,i)=>s+i.precio*i.cantidad,0),
+    estado:"NUEVA",
+    fecha:Date.now()
+  };
+
+  await push(ref(db,"ordenes"), orden);
+  enviarWhatsApp(orden);
+
+  carrito=[];
+  renderCarrito();
+  alert("✅ Orden creada");
+};
+
+/* ===== WHATSAPP ===== */
+function enviarWhatsApp(o){
+  const tel = o.cliente.telefono.replace(/\D/g,'');
+  const detalle = o.items.map(i=>`${i.nombre} x${i.cantidad}`).join("\n");
+
+  const msg = `🧾 FACTURA
+Cliente: ${o.cliente.nombre}
+
+${detalle}
+
+TOTAL: $${o.total}`;
+
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`);
+}
+</script>
+
+</body>
+</html>

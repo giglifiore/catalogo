@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Admin Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+  font-family: Arial, sans-serif;
+  background:#f5f5f5;
+  padding:20px;
+}
+.tabs{
+  display:flex;
+  gap:10px;
+  margin-bottom:20px;
+}
+.tab{
+  padding:10px 15px;
+  background:#ddd;
+  border-radius:6px;
+  cursor:pointer;
+}
+.tab.active{
+  background:#3498db;
+  color:#fff;
+}
+.section{
+  display:none;
+}
+.section.active{
+  display:block;
+}
+.card{
+  background:#fff;
+  padding:15px;
+  margin-bottom:12px;
+  border-radius:8px;
+  box-shadow:0 2px 5px rgba(0,0,0,.1);
+}
+input, button{
+  width:100%;
+  padding:8px;
+  margin-top:8px;
+}
+button{
+  cursor:pointer;
+}
+.btn-delete{
+  background:#e74c3c;
+  color:#fff;
+  border:none;
+}
+img{
+  max-width:100px;
+  display:block;
+  margin-top:8px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>⚙️ Panel Admin</h1>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('ordenes')">📦 Órdenes</div>
+  <div class="tab" onclick="showTab('productos')">🛒 Productos</div>
+</div>
+
+<!-- ================= ORDENES ================= -->
+<div id="ordenes" class="section active">
+  <h2>Órdenes</h2>
+  <div id="listaOrdenes"></div>
+</div>
+
+<!-- ================= PRODUCTOS ================= -->
+<div id="productos" class="section">
+  <h2>Productos</h2>
+
+  <div class="card">
+    <h3>Agregar / Editar Producto</h3>
+    <input type="hidden" id="prodId">
+    <input id="nombre" placeholder="Nombre">
+    <input id="precio" type="number" placeholder="Precio">
+    <input type="file" id="imagen">
+    <button onclick="guardarProducto()">💾 Guardar</button>
+  </div>
+
+  <h3>Listado</h3>
+  <div id="listaProductos"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+  getDatabase, ref, onValue, push, set, remove 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import {
+  getStorage, ref as sRef, uploadBytes, getDownloadURL, deleteObject
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBSDmBuzRSGTYycswO7_p_kHgfscH67rJQ",
+  authDomain: "catalogo-12ef6.firebaseapp.com",
+  databaseURL: "https://catalogo-12ef6-default-rtdb.firebaseio.com",
+  projectId: "catalogo-12ef6",
+  storageBucket: "catalogo-12ef6.appspot.com",
+  messagingSenderId: "792387780357",
+  appId: "1:792387780357:web:d77a3333ffbcefba15816c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const storage = getStorage(app);
+
+/* ================= TABS ================= */
+window.showTab = function(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelector(`[onclick="showTab('${tab}')"]`).classList.add('active');
+  document.getElementById(tab).classList.add('active');
+}
+
+/* ================= ORDENES ================= */
+const ordenesRef = ref(db, "ordenes");
+const contOrdenes = document.getElementById("listaOrdenes");
+
+onValue(ordenesRef, snap=>{
+  contOrdenes.innerHTML="";
+  if(!snap.exists()){
+    contOrdenes.innerHTML="<p>No hay órdenes</p>";
+    return;
+  }
+  snap.forEach(c=>{
+    const o=c.val();
+    contOrdenes.innerHTML+=`
+      <div class="card">
+        <strong>${o.cliente?.nombre || "Cliente"}</strong><br>
+        Total: $${o.total || 0}<br>
+        <button class="btn-delete" onclick="eliminarOrden('${c.key}')">Eliminar</button>
+      </div>
+    `;
+  });
+});
+
+window.eliminarOrden=id=>{
+  if(confirm("Eliminar orden?")){
+    remove(ref(db,"ordenes/"+id));
+  }
+}
+
+/* ================= PRODUCTOS ================= */
+const productosRef = ref(db,"productos");
+const listaProductos = document.getElementById("listaProductos");
+
+onValue(productosRef,snap=>{
+  listaProductos.innerHTML="";
+  if(!snap.exists()){
+    listaProductos.innerHTML="<p>No hay productos</p>";
+    return;
+  }
+  snap.forEach(c=>{
+    const p=c.val();
+    listaProductos.innerHTML+=`
+      <div class="card">
+        <strong>${p.nombre}</strong><br>
+        $${p.precio}<br>
+        ${p.imagen ? `<img src="${p.imagen}">` : ""}
+        <button onclick="editarProducto('${c.key}','${p.nombre}','${p.precio}')">✏️ Editar</button>
+        <button class="btn-delete" onclick="eliminarProducto('${c.key}','${p.imagen}')">🗑 Eliminar</button>
+      </div>
+    `;
+  });
+});
+
+window.guardarProducto = async ()=>{
+  const id=document.getElementById("prodId").value;
+  const nombre=document.getElementById("nombre").value;
+  const precio=document.getElementById("precio").value;
+  const file=document.getElementById("imagen").files[0];
+
+  let imgURL=null;
+
+  if(file){
+    const imgRef=sRef(storage,"productos/"+Date.now()+"_"+file.name);
+    await uploadBytes(imgRef,file);
+    imgURL=await getDownloadURL(imgRef);
+  }
+
+  const data={nombre,precio};
+  if(imgURL) data.imagen=imgURL;
+
+  if(id){
+    await set(ref(db,"productos/"+id),data);
+  }else{
+    await push(productosRef,data);
+  }
+
+  document.getElementById("prodId").value="";
+  document.getElementById("nombre").value="";
+  document.getElementById("precio").value="";
+  document.getElementById("imagen").value="";
+}
+
+window.editarProducto=(id,nombre,precio)=>{
+  prodId.value=id;
+  document.getElementById("nombre").value=nombre;
+  document.getElementById("precio").value=precio;
+  showTab('productos');
+}
+
+window.eliminarProducto=async(id,img)=>{
+  if(confirm("Eliminar producto?")){
+    if(img){
+      const imgRef=sRef(storage,img);
+      try{await deleteObject(imgRef);}catch(e){}
+    }
+    remove(ref(db,"productos/"+id));
+  }
+}
+</script>
+
+</body>
+</html>
