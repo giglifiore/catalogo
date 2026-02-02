@@ -61,6 +61,55 @@ button {
   background: #fff;      /* opcional */
   border-radius: 6px;
 }
+#barraCarrito{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  color: black;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+}
+
+#barraCarrito button{
+  background: white;
+  color: #007bff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+body{
+  padding-top: 70px; /* para que no tape el contenido */
+}
+
+/* Carrito como panel */
+.carrito{
+  position: fixed;
+  top: 70px;
+  right: -350px;
+  width: 320px;
+  height: calc(100vh - 70px);
+  background: #fff;
+  border-left: 2px solid #ddd;
+  padding: 15px;
+  transition: right .3s ease;
+  overflow-y: auto;
+  z-index: 999;
+}
+
+.carrito.activo{
+  right: 0;
+}
+
+.carrito button{
+  width: auto;
+}
 
 
 </style>
@@ -74,13 +123,21 @@ button {
   <div class="productos" id="productos"></div>
 </div>
 
-<div class="carrito">
-  <h2>🛒 Carrito</h2>
-  <ul id="lista-carrito"></ul>
-  <p id="total">Total: $0.00</p>
-  <button id="generar">Generar Orden</button>
+<div id="barraCarrito">
+  <div>
+    🛒 <b>Carrito</b> —
+    <span id="carritoItems">0</span> items |
+    Total: $<span id="carritoTotal">0.00</span>
+  </div>
+  <button onclick="toggleCarrito()">Ver carrito</button>
 </div>
 
+<div class="carrito" id="panelCarrito">
+  <h2>🛒 Tu carrito</h2>
+  <ul id="lista-carrito"></ul>
+  <p id="total">Total: $0.00</p>
+  <button id="generar">✅ Generar Orden</button>
+</div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, push }
@@ -166,7 +223,7 @@ window.agregar = codigo=>{
   renderCarrito();
 };
 
-function renderCarrito(){
+/*function renderCarrito(){
   listaCarrito.innerHTML="";
   let total=0;
 
@@ -178,7 +235,7 @@ function renderCarrito(){
   });
 
   totalEl.textContent = `Total: $${total.toFixed(2)}`;
-}
+}*/
 
 /* ===== ORDEN ===== */
 generarBtn.onclick = async ()=>{
@@ -221,6 +278,53 @@ TOTAL: $${o.total}`;
 document.getElementById("btnAdmin").onclick = () => {
   window.location.href = "admin.html";
 };
+
+window.toggleCarrito = ()=>{
+  document.getElementById("panelCarrito").classList.toggle("activo");
+};
+
+
+function renderCarrito(){
+  listaCarrito.innerHTML = "";
+  let total = 0;
+  let totalItems = 0;
+
+  carrito.forEach((i,index)=>{
+    total += i.precio * i.cantidad;
+    totalItems += i.cantidad;
+
+    listaCarrito.innerHTML += `
+      <li>
+        <b>${i.nombre}</b><br>
+        $${i.precio} x ${i.cantidad} = $${(i.precio*i.cantidad).toFixed(2)}
+        <br>
+        <button onclick="cambiarCantidad(${index},-1)">➖</button>
+        <button onclick="cambiarCantidad(${index},1)">➕</button>
+        <button onclick="eliminarItem(${index})">🗑</button>
+      </li>
+      <hr>
+    `;
+  });
+
+  totalEl.textContent = `Total: $${total.toFixed(2)}`;
+  document.getElementById("carritoItems").innerText = totalItems;
+  document.getElementById("carritoTotal").innerText = total.toFixed(2);
+}
+
+window.cambiarCantidad = (index,delta)=>{
+  carrito[index].cantidad += delta;
+  if(carrito[index].cantidad <= 0){
+    carrito.splice(index,1);
+  }
+  renderCarrito();
+};
+
+window.eliminarItem = index=>{
+  carrito.splice(index,1);
+  renderCarrito();
+};
+
+
 </script>
 
 </body>
