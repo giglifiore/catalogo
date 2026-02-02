@@ -17,6 +17,15 @@ input,button{width:100%;padding:8px;margin-top:8px}
 button{cursor:pointer}
 .btn-delete{background:#e74c3c;color:#fff;border:none}
 img{max-width:120px;margin-top:8px;border-radius:6px}
+
+#listaProductos img{
+  width: 220px;
+  height: 150px;
+  object-fit: contain;   /* NO corta la imagen */
+  background: #fff;
+  border-radius: 6px;
+}
+
 </style>
 </head>
 
@@ -87,28 +96,72 @@ window.showTab = tab=>{
   document.querySelector(`[onclick="showTab('${tab}')"]`).classList.add('active');
   document.getElementById(tab).classList.add('active');
 }
+/* ================= cambia estado ================= */
+window.cambiarEstado = async (id, nuevoEstado) => {
+  await set(ref(db, "ordenes/" + id + "/estado"), nuevoEstado);
+};
+
 
 /* ================= ORDENES ================= */
 onValue(ref(db,"ordenes"), snap=>{
-  const cont=document.getElementById("listaOrdenes");
-  cont.innerHTML="";
-  if(!snap.exists()){cont.innerHTML="No hay órdenes";return;}
-  snap.forEach(c=>{
-    const o=c.val();
-    cont.innerHTML+=`
+  const cont = document.getElementById("listaOrdenes");
+  cont.innerHTML = "";
+
+  if (!snap.exists()) {
+    cont.innerHTML = "<p>No hay órdenes</p>";
+    return;
+  }
+
+  snap.forEach(c => {
+    const o = c.val();
+
+    const fecha = o.fecha
+      ? new Date(o.fecha).toLocaleString()
+      : "Sin fecha";
+
+    const itemsHTML = (o.items || []).map(i => `
+      <li>
+        ${i.nombre} x${i.cantidad}
+        → $${(i.precio * i.cantidad).toFixed(2)}
+      </li>
+    `).join("");
+
+    cont.innerHTML += `
       <div class="card">
-        <b>${o.cliente?.nombre || "Cliente"}</b><br>
-        Total: $${o.total || 0}
-        <button class="btn-delete" onclick="eliminarOrden('${c.key}')">Eliminar</button>
-      </div>`;
+        <strong>${o.cliente?.nombre || "Cliente"}</strong><br>
+        📞 ${o.cliente?.telefono || "N/A"}<br>
+        🕒 ${fecha}<br>
+
+        <label><b>Estado:</b></label>
+        <select onchange="cambiarEstado('${c.key}', this.value)">
+          <option value="NUEVA" ${o.estado==="NUEVA"?"selected":""}>NUEVA</option>
+          <option value="PAGADA" ${o.estado==="PAGADA"?"selected":""}>PAGADA</option>
+          <option value="ENTREGADA" ${o.estado==="ENTREGADA"?"selected":""}>ENTREGADA</option>
+          <option value="CANCELADA" ${o.estado==="CANCELADA"?"selected":""}>CANCELADA</option>
+        </select>
+
+        <hr>
+
+        <ul>${itemsHTML}</ul>
+
+        <b>TOTAL:</b> $${o.total || 0}
+
+        <button class="btn-delete"
+          onclick="eliminarOrden('${c.key}')">
+          🗑 Eliminar
+        </button>
+      </div>
+    `;
   });
 });
 
-window.eliminarOrden=id=>{
-  if(confirm("Eliminar orden?")){
-    remove(ref(db,"ordenes/"+id));
+
+window.eliminarOrden = id => {
+  if (confirm("¿Eliminar esta orden?")) {
+    remove(ref(db, "ordenes/" + id));
   }
-}
+};
+
 
 /* ================= PRODUCTOS ================= */
 const productosRef=ref(db,"productos");
