@@ -120,6 +120,20 @@ body{
 
 <div class="contenedor">
   <h1>🛍️ Catálogo</h1>
+  
+  <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+  <select id="filtroCategoria">
+    <option value="">📂 Todas las categorías</option>
+  </select>
+
+  <input 
+    type="text" 
+    id="buscador" 
+    placeholder="🔍 Buscar producto..."
+    style="padding:8px; border-radius:6px; border:1px solid #ccc;"
+  >
+</div>
+
   <div class="productos" id="productos"></div>
 </div>
 
@@ -166,9 +180,15 @@ const generarBtn = document.getElementById("generar");
 let productos = [];
 let carrito = [];
 
+const filtroCategoria = document.getElementById("filtroCategoria");
+const buscador = document.getElementById("buscador");
+
+let categorias = [];
+
 /* ===== LEER PRODUCTOS ===== */
 onValue(ref(db,"productos"), snap=>{
   productos = [];
+  categorias = [];
   contProductos.innerHTML = "";
 
   if(!snap.exists()){
@@ -177,20 +197,57 @@ onValue(ref(db,"productos"), snap=>{
   }
 
   snap.forEach(child=>{
-    productos.push({
+    const prod = {
       codigo: child.key,
       ...child.val()
-    });
+    };
+
+    productos.push(prod);
+
+    if (prod.categoriaNombre && !categorias.includes(prod.categoriaNombre)) {
+	  categorias.push(prod.categoriaNombre);
+	}
+
   });
 
+  cargarCategorias();
   renderProductos();
 });
 
+
 /* ===== UI ===== */
+
+
+function cargarCategorias(){
+  filtroCategoria.innerHTML = `
+    <option value="">📂 Todas las categorías</option>
+  `;
+
+  categorias.sort().forEach(cat=>{
+    filtroCategoria.innerHTML += `
+      <option value="${cat}">${cat}</option>
+    `;
+  });
+}
+
 function renderProductos(){
   contProductos.innerHTML = "";
 
-  productos.forEach(p => {
+  const categoriaSel = filtroCategoria.value;
+  const texto = buscador.value.toLowerCase();
+
+  const filtrados = productos.filter(p=>{
+    const porCategoria = categoriaSel ? p.categoria === categoriaSel : true;
+    const porTexto = p.nombre.toLowerCase().includes(texto);
+    return porCategoria && porTexto;
+  });
+
+  if(!filtrados.length){
+    contProductos.innerHTML = "<p>No hay resultados</p>";
+    return;
+  }
+
+  filtrados.forEach(p => {
 
     let img = p.foto
       ? p.foto.replace(
@@ -209,8 +266,6 @@ function renderProductos(){
     `;
   });
 }
-
-
 
 
 window.agregar = codigo=>{
@@ -324,6 +379,8 @@ window.eliminarItem = index=>{
   renderCarrito();
 };
 
+filtroCategoria.onchange = renderProductos;
+buscador.oninput = renderProductos;
 
 </script>
 

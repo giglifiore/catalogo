@@ -36,7 +36,9 @@ img{max-width:120px;margin-top:8px;border-radius:6px}
 <div class="tabs">
   <div class="tab active" onclick="showTab('ordenes')">📦 Órdenes</div>
   <div class="tab" onclick="showTab('productos')">🛒 Productos</div>
+  <div class="tab" onclick="showTab('categorias')">📂 Categorías</div>
 </div>
+
 
 <!-- ORDENES -->
 <div id="ordenes" class="section active">
@@ -49,12 +51,27 @@ img{max-width:120px;margin-top:8px;border-radius:6px}
     <input type="hidden" id="prodId">
     <input id="nombre" placeholder="Nombre">
     <input id="precio" type="number" placeholder="Precio">
+
+    <select id="categoria">
+      <option value="">📂 Seleccionar categoría</option>
+    </select>
+
     <input type="file" id="imagen">
     <button onclick="guardarProducto()">💾 Guardar producto</button>
   </div>
+
   <div id="listaProductos"></div>
 </div>
 
+<div id="categorias" class="section">
+  <div class="card">
+    <input type="hidden" id="catId">
+    <input id="catNombre" placeholder="Nombre de categoría">
+    <button onclick="guardarCategoria()">💾 Guardar categoría</button>
+  </div>
+
+  <div id="listaCategorias"></div>
+</div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, set, get, remove }
@@ -166,51 +183,150 @@ window.eliminarOrden = id => {
 /* ================= PRODUCTOS ================= */
 const productosRef=ref(db,"productos");
 const lista=document.getElementById("listaProductos");
+const categoriasRef = ref(db, "categorias");
+const listaCategorias = document.getElementById("listaCategorias");
+const selectCategoria = document.getElementById("categoria");
 
-onValue(productosRef,snap=>{
-  lista.innerHTML="";
-  if(!snap.exists()){lista.innerHTML="No hay productos";return;}
-  snap.forEach(c=>{
-    const p=c.val();
-    lista.innerHTML+=`
+
+onValue(productosRef, snap => {
+  lista.innerHTML = "";
+
+  if (!snap.exists()) {
+    lista.innerHTML = "<p>No hay productos</p>";
+    return;
+  }
+
+  snap.forEach(c => {
+    const p = c.val();
+
+    lista.innerHTML += `
       <div class="card">
-        <b>${p.nombre}</b><br>$${p.precio}
-        ${p.foto?`<img src="${p.foto}">`:""}
-        <button onclick="editar('${c.key}','${p.nombre}','${p.precio}')">✏️</button>
-        <button class="btn-delete" onclick="eliminarProducto('${c.key}')">🗑</button>
-      </div>`;
+        <b>${p.nombre}</b><br>
+        $${p.precio}<br>
+        <small>📂 ${p.categoriaNombre || ""}</small><br>
+        ${p.foto ? `<img src="${p.foto}">` : ""}
+
+        <button onclick="editarProducto(
+          '${c.key}',
+          '${p.nombre}',
+          '${p.precio}',
+          '${p.categoria}'
+        )">✏️</button>
+
+        <button class="btn-delete"
+          onclick="eliminarProducto('${c.key}')">
+          🗑
+        </button>
+      </div>
+    `;
   });
 });
 
-window.guardarProducto = async ()=>{
-  const id=document.getElementById("prodId").value;
-  const nombre=document.getElementById("nombre").value;
-  const precio=Number(document.getElementById("precio").value);
-  const file=document.getElementById("imagen").files[0];
 
-  let data={nombre,precio};
+onValue(categoriasRef, snap => {
+  listaCategorias.innerHTML = "";
+  selectCategoria.innerHTML = `<option value="">📂 Seleccionar categoría</option>`;
 
-  if(file){
-    data.foto = await subirImagen(file);
-  }else if(id){
-    const old=(await get(ref(db,"productos/"+id))).val();
-    if(old?.foto) data.foto=old.foto;
+  if (!snap.exists()) {
+    listaCategorias.innerHTML = "<p>No hay categorías</p>";
+    return;
   }
 
-  id ? set(ref(db,"productos/"+id),data) : push(productosRef,data);
+  snap.forEach(c => {
+    const cat = c.val();
 
-  document.getElementById("prodId").value="";
-  document.getElementById("nombre").value="";
-  document.getElementById("precio").value="";
-  document.getElementById("imagen").value="";
-}
+    selectCategoria.value = "";
+    selectCategoria.innerHTML += `
+      <option value="${c.key}">${cat.nombre}</option>
+    `;
 
-window.editar=(id,n,p)=>{
-  document.getElementById("prodId").value=id;
-  document.getElementById("nombre").value=n;
-  document.getElementById("precio").value=p;
-  showTab('productos');
-}
+    listaCategorias.innerHTML += `
+      <div class="card">
+        <b>${cat.nombre}</b>
+        <button onclick="editarCategoria('${c.key}','${cat.nombre}')">✏️</button>
+        <button class="btn-delete" onclick="eliminarCategoria('${c.key}')">🗑</button>
+      </div>
+    `;
+  });
+});
+
+
+
+window.guardarProducto = async ()=> {
+  const id = document.getElementById("prodId").value;
+  const nombre = document.getElementById("nombre").value;
+  const precio = Number(document.getElementById("precio").value);
+  const categoriaId = selectCategoria.value;
+  const file = document.getElementById("imagen").files[0];
+
+  if (!categoriaId) return alert("Selecciona una categoría");
+
+  const categoriaNombre =
+    selectCategoria.options[selectCategoria.selectedIndex].text;
+
+  let data = {
+    nombre,
+    precio,
+    categoria: categoriaId,
+    categoriaNombre
+  };
+
+  if (file) {
+    data.foto = await subirImagen(file);
+  } else if (id) {
+    const old = (await get(ref(db,"productos/"+id))).val();
+    if (old?.foto) data.foto = old.foto;
+  }
+
+  id
+    ? set(ref(db,"productos/"+id), data)
+    : push(productosRef, data);
+
+  document.getElementById("prodId").value = "";
+  document.getElementById("nombre").value = "";
+  document.getElementById("precio").value = "";
+  document.getElementById("imagen").value = "";
+  selectCategoria.value = "";
+};
+
+
+window.guardarCategoria = async () => {
+  const id = document.getElementById("catId").value;
+  const nombre = document.getElementById("catNombre").value.trim();
+
+  if (!nombre) return alert("Nombre requerido");
+
+  const data = { nombre };
+
+  id
+    ? set(ref(db, "categorias/" + id), data)
+    : push(categoriasRef, data);
+
+  document.getElementById("catId").value = "";
+  document.getElementById("catNombre").value = "";
+};
+
+window.editarCategoria = (id, nombre) => {
+  document.getElementById("catId").value = id;
+  document.getElementById("catNombre").value = nombre;
+  showTab("categorias");
+};
+
+window.eliminarCategoria = id => {
+  if (confirm("¿Eliminar categoría?")) {
+    remove(ref(db, "categorias/" + id));
+  }
+};
+
+window.editarProducto = (id, nombre, precio, categoria) => {
+  document.getElementById("prodId").value = id;
+  document.getElementById("nombre").value = nombre;
+  document.getElementById("precio").value = precio;
+  selectCategoria.value = categoria;
+  showTab("productos");
+};
+
+
 
 window.eliminarProducto=id=>{
   if(confirm("Eliminar producto?")){
