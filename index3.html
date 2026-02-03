@@ -240,9 +240,7 @@ onValue(ref(db,"productos"), snap=>{
   renderProductos();
 });
 
-
 /* ===== UI ===== */
-
 
 function cargarCategorias(){
   filtroCategoria.innerHTML = `
@@ -264,7 +262,8 @@ function renderProductos(){
 
   const filtrados = productos.filter(p=>{
   const porTienda = tiendaId ? p.tienda === tiendaId : true;
-  const porCategoria = categoriaSel ? p.categoria === categoriaSel : true;
+  const porCategoria = categoriaSel ? p.categoriaNombre === categoriaSel : true;
+
   const porTexto = p.nombre.toLowerCase().includes(texto);
   return porTienda && porCategoria && porTexto;
 });
