@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Tienda | Órdenes</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial;
+  margin: 0;
+  background: #f7f7f7;
+  display: flex;
+  min-height: 100vh;
+}
+.contenedor { flex: 1; padding: 20px; }
+.productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px,1fr));
+  gap: 20px;
+}
+.producto {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+.producto img { width: 100%; border-radius: 8px; }
+button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.carrito {
+  width: 300px;
+  background: #fff;
+  border-left: 2px solid #ddd;
+  padding: 20px;
+}
+
+#btnAdmin{
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #111;
+  color: #fff;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 50px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,.3);
+}
+
+.producto img{
+  width: 220px;
+  height: 150px;
+  object-fit: contain;   /* 👈 CLAVE */
+  background: #fff;      /* opcional */
+  border-radius: 6px;
+}
+#barraCarrito{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  color: black;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+}
+
+#barraCarrito button{
+  background: white;
+  color: #007bff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+body{
+  padding-top: 70px; /* para que no tape el contenido */
+}
+
+/* Carrito como panel */
+.carrito{
+  position: fixed;
+  top: 70px;
+  right: -350px;
+  width: 320px;
+  height: calc(100vh - 70px);
+  background: #fff;
+  border-left: 2px solid #ddd;
+  padding: 15px;
+  transition: right .3s ease;
+  overflow-y: auto;
+  z-index: 999;
+}
+
+.carrito.activo{
+  right: 0;
+}
+
+.carrito button{
+  width: auto;
+}
+
+.carrito input{
+  width:100%;
+  padding:8px;
+  margin:6px 0 12px;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
+</style>
+</head>
+
+<body>
+<button id="btnAdmin">🛠️ Admin</button>
+
+<div class="contenedor">
+  <h1>🛍️ Catálogo</h1>
+  
+  <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+  <select id="filtroCategoria">
+    <option value="">📂 Todas las categorías</option>
+  </select>
+
+  <input 
+    type="text" 
+    id="buscador" 
+    placeholder="🔍 Buscar producto..."
+    style="padding:8px; border-radius:6px; border:1px solid #ccc;"
+  >
+</div>
+
+  <div class="productos" id="productos"></div>
+</div>
+
+<div id="barraCarrito">
+  <div>
+    🛒 <b>Carrito</b> —
+    <span id="carritoItems">0</span> items |
+    Total: $<span id="carritoTotal">0.00</span>
+  </div>
+  <button onclick="toggleCarrito()">Ver carrito</button>
+</div>
+
+<div class="carrito" id="panelCarrito">
+  <h2>🛒 Tu carrito</h2>
+
+  <ul id="lista-carrito"></ul>
+
+  <p id="total">Total: $0.00</p>
+
+  <hr>
+
+  <label>👤 Nombre</label>
+  <input id="clienteNombre" placeholder="Nombre del cliente">
+
+  <label>📱 WhatsApp</label>
+  <div style="display:flex; gap:5px;">
+    <input value="1" disabled style="width:35px; text-align:center;">
+    <input id="clienteTelefono" placeholder="8095551234">
+  </div>
+
+  <button id="generar">✅ Generar Orden</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue, push }
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+/* ===== FIREBASE ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBSDmBuzRSGTYycswO7_p_kHgfscH67rJQ",
+  authDomain: "catalogo-12ef6.firebaseapp.com",
+  databaseURL: "https://catalogo-12ef6-default-rtdb.firebaseio.com",
+  projectId: "catalogo-12ef6",
+  storageBucket: "catalogo-12ef6.appspot.com",
+  messagingSenderId: "792387780357",
+  appId: "1:792387780357:web:d77a3333ffbcefba15816c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ===== ELEMENTOS ===== */
+const contProductos = document.getElementById("productos");
+const listaCarrito = document.getElementById("lista-carrito");
+const totalEl = document.getElementById("total");
+const generarBtn = document.getElementById("generar");
+
+const params = new URLSearchParams(window.location.search);
+const tiendaId = params.get("tienda");
+
+
+let productos = [];
+let carrito = [];
+
+const filtroCategoria = document.getElementById("filtroCategoria");
+const buscador = document.getElementById("buscador");
+
+let categorias = [];
+
+/* ===== LEER PRODUCTOS ===== */
+onValue(ref(db,"productos"), snap=>{
+  productos = [];
+  categorias = [];
+  contProductos.innerHTML = "";
+
+  if(!snap.exists()){
+    contProductos.innerHTML = "<p>No hay productos</p>";
+    return;
+  }
+
+  snap.forEach(child=>{
+    const prod = {
+      codigo: child.key,
+      ...child.val()
+    };
+
+    productos.push(prod);
+
+    if (prod.categoriaNombre && !categorias.includes(prod.categoriaNombre)) {
+	  categorias.push(prod.categoriaNombre);
+	}
+
+  });
+
+  cargarCategorias();
+  renderProductos();
+});
+
+
+/* ===== UI ===== */
+
+
+function cargarCategorias(){
+  filtroCategoria.innerHTML = `
+    <option value="">📂 Todas las categorías</option>
+  `;
+
+  categorias.sort().forEach(cat=>{
+    filtroCategoria.innerHTML += `
+      <option value="${cat}">${cat}</option>
+    `;
+  });
+}
+
+function renderProductos(){
+  contProductos.innerHTML = "";
+
+  const categoriaSel = filtroCategoria.value;
+  const texto = buscador.value.toLowerCase();
+
+  const filtrados = productos.filter(p=>{
+  const porTienda = tiendaId ? p.tienda === tiendaId : true;
+  const porCategoria = categoriaSel ? p.categoria === categoriaSel : true;
+  const porTexto = p.nombre.toLowerCase().includes(texto);
+  return porTienda && porCategoria && porTexto;
+});
+
+  if(!filtrados.length){
+    contProductos.innerHTML = "<p>No hay resultados</p>";
+    return;
+  }
+
+  filtrados.forEach(p => {
+
+    let img = p.foto
+      ? p.foto.replace(
+          "/upload/",
+          "/upload/w_200,h_150,c_fit,f_auto,q_auto/"
+        )
+      : "https://via.placeholder.com/200x150";
+
+    contProductos.innerHTML += `
+      <div class="producto">
+        <img src="${img}">
+        <h3>${p.nombre}</h3>
+        <p>$${p.precio}</p>
+        <button onclick="agregar('${p.codigo}')">Agregar</button>
+      </div>
+    `;
+  });
+}
+
+
+window.agregar = codigo=>{
+  const prod = productos.find(p=>p.codigo===codigo);
+  const item = carrito.find(i=>i.codigo===codigo);
+
+  if(item) item.cantidad++;
+  else carrito.push({...prod, cantidad:1});
+
+  renderCarrito();
+};
+
+/*function renderCarrito(){
+  listaCarrito.innerHTML="";
+  let total=0;
+
+  carrito.forEach(i=>{
+    total += i.precio*i.cantidad;
+    listaCarrito.innerHTML += `
+      <li>${i.nombre} x${i.cantidad} - $${(i.precio*i.cantidad).toFixed(2)}</li>
+    `;
+  });
+
+  totalEl.textContent = `Total: $${total.toFixed(2)}`;
+}*/
+
+/* ===== ORDEN ===== */
+generarBtn.onclick = async ()=>{
+  if(!carrito.length) return alert("Carrito vacío");
+
+  const nombre = document.getElementById("clienteNombre").value.trim();
+  let telefono = document.getElementById("clienteTelefono").value.trim();
+
+  if(!nombre || !telefono){
+    alert("Completa nombre y WhatsApp");
+    return;
+  }
+
+  telefono = telefono.replace(/\D/g,'');
+
+  // prefijo RD
+  if(!telefono.startsWith("1")){
+    telefono = "1" + telefono;
+  }
+
+  const orden = {
+    cliente:{
+      nombre,
+      telefono
+    },
+    items:carrito,
+    total: carrito.reduce((s,i)=>s+i.precio*i.cantidad,0),
+    estado:"NUEVA",
+    fecha:Date.now()
+  };
+
+  await push(ref(db,"ordenes"), orden);
+  enviarWhatsApp(orden);
+
+  carrito=[];
+  renderCarrito();
+
+  document.getElementById("clienteNombre").value="";
+  document.getElementById("clienteTelefono").value="";
+
+  alert("✅ Orden creada");
+};
+
+
+
+/* ===== WHATSAPP ===== */
+function enviarWhatsApp(o){
+  const tel = o.cliente.telefono.replace(/\D/g,'');
+  const detalle = o.items.map(i=>`${i.nombre} x${i.cantidad}`).join("\n");
+
+  const msg = `🧾 FACTURA
+Cliente: ${o.cliente.nombre}
+
+${detalle}
+
+TOTAL: $${o.total}`;
+
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`);
+}
+
+document.getElementById("btnAdmin").onclick = () => {
+  window.location.href = "admin.html";
+};
+
+window.toggleCarrito = ()=>{
+  document.getElementById("panelCarrito").classList.toggle("activo");
+};
+
+
+function renderCarrito(){
+  listaCarrito.innerHTML = "";
+  let total = 0;
+  let totalItems = 0;
+
+  carrito.forEach((i,index)=>{
+    total += i.precio * i.cantidad;
+    totalItems += i.cantidad;
+
+    listaCarrito.innerHTML += `
+      <li>
+        <b>${i.nombre}</b><br>
+        $${i.precio} x ${i.cantidad} = $${(i.precio*i.cantidad).toFixed(2)}
+        <br>
+        <button onclick="cambiarCantidad(${index},-1)">➖</button>
+        <button onclick="cambiarCantidad(${index},1)">➕</button>
+        <button onclick="eliminarItem(${index})">🗑</button>
+      </li>
+      <hr>
+    `;
+  });
+
+  totalEl.textContent = `Total: $${total.toFixed(2)}`;
+  document.getElementById("carritoItems").innerText = totalItems;
+  document.getElementById("carritoTotal").innerText = total.toFixed(2);
+}
+
+window.cambiarCantidad = (index,delta)=>{
+  carrito[index].cantidad += delta;
+  if(carrito[index].cantidad <= 0){
+    carrito.splice(index,1);
+  }
+  renderCarrito();
+};
+
+window.eliminarItem = index=>{
+  carrito.splice(index,1);
+  renderCarrito();
+};
+
+filtroCategoria.onchange = renderProductos;
+buscador.oninput = renderProductos;
+
+</script>
+
+</body>
+</html>

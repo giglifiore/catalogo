@@ -271,7 +271,8 @@ window.guardarProducto = async ()=> {
   const precio = Number(document.getElementById("precio").value);
   const categoriaId = selectCategoria.value;
   const file = document.getElementById("imagen").files[0];
-
+  const tiendaId = "tienda1";
+  
   if (!categoriaId) return alert("Selecciona una categoría");
 
   const categoriaNombre =
@@ -281,7 +282,8 @@ window.guardarProducto = async ()=> {
     nombre,
     precio,
     categoria: categoriaId,
-    categoriaNombre
+    categoriaNombre,
+	tienda: tiendaId
   };
 
   if (file) {
