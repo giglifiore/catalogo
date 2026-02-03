@@ -111,6 +111,13 @@ body{
   width: auto;
 }
 
+.carrito input{
+  width:100%;
+  padding:8px;
+  margin:6px 0 12px;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
 
 </style>
 </head>
@@ -148,10 +155,25 @@ body{
 
 <div class="carrito" id="panelCarrito">
   <h2>🛒 Tu carrito</h2>
+
   <ul id="lista-carrito"></ul>
+
   <p id="total">Total: $0.00</p>
+
+  <hr>
+
+  <label>👤 Nombre</label>
+  <input id="clienteNombre" placeholder="Nombre del cliente">
+
+  <label>📱 WhatsApp</label>
+  <div style="display:flex; gap:5px;">
+    <input value="1" disabled style="width:35px; text-align:center;">
+    <input id="clienteTelefono" placeholder="8095551234">
+  </div>
+
   <button id="generar">✅ Generar Orden</button>
 </div>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, onValue, push }
@@ -296,11 +318,26 @@ window.agregar = codigo=>{
 generarBtn.onclick = async ()=>{
   if(!carrito.length) return alert("Carrito vacío");
 
-  const nombre = prompt("Nombre cliente:");
-  const telefono = prompt("WhatsApp:");
+  const nombre = document.getElementById("clienteNombre").value.trim();
+  let telefono = document.getElementById("clienteTelefono").value.trim();
+
+  if(!nombre || !telefono){
+    alert("Completa nombre y WhatsApp");
+    return;
+  }
+
+  telefono = telefono.replace(/\D/g,'');
+
+  // prefijo RD
+  if(!telefono.startsWith("1")){
+    telefono = "1" + telefono;
+  }
 
   const orden = {
-    cliente:{nombre,telefono},
+    cliente:{
+      nombre,
+      telefono
+    },
     items:carrito,
     total: carrito.reduce((s,i)=>s+i.precio*i.cantidad,0),
     estado:"NUEVA",
@@ -312,8 +349,14 @@ generarBtn.onclick = async ()=>{
 
   carrito=[];
   renderCarrito();
+
+  document.getElementById("clienteNombre").value="";
+  document.getElementById("clienteTelefono").value="";
+
   alert("✅ Orden creada");
 };
+
+
 
 /* ===== WHATSAPP ===== */
 function enviarWhatsApp(o){
